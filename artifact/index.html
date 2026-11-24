@@ -173,7 +173,9 @@ tr.archived td:not(:last-child) { color: var(--muted); }
 /* ---------- Static accounts (basic auth for now) ----------
    hash = sha256(salt + ":" + username + ":" + password)
    This is a sign-in gate inside the page. The data itself is protected by
-   claude.ai: only the artifact's owner and editors can read or write it. */
+   claude.ai: only the artifact's owner and editors can read or write it.
+   Self-hosted, these are unused: the server checks ADMIN_USERNAME and
+   ADMIN_PASSWORD_HASH instead. */
 const USERS = [
   { username: "admin", role: "admin", salt: "2180c3788cd30a36",
     hash: "f6704b42a27ff71048bad5a0c89c37e328d3caf79980ce604e76b2a14508be6f" },
@@ -229,11 +231,15 @@ function toast(msg) {
   clearTimeout(toast.t); toast.t = setTimeout(() => (root.innerHTML = ""), 3200);
 }
 function dbErrorText(e) {
+  if (e?.code === "rejected") return `The server rejected this change. ${e.message || ""}`.trim();
   if (e?.code === "quota_exceeded") return "Storage is full. Delete some entries, then try again.";
   if (e?.code === "invalid_argument") return "You don't have permission to change this data.";
   return "Couldn't save. Check your connection and try again.";
 }
 const useCap = (name) => (window.claude?.use ? window.claude.use(name) : Promise.resolve(null));
+// On claude.ai the page uses the artifact's storage; served by the FastAPI
+// backend (no window.claude) it uses the REST API and server-side sign-in.
+const HOSTED = !!window.claude?.use;
 const isAdmin = () => S.user?.role === "admin";
 
 const hasDetails = (e) => !!(e.notes || (e.link && isSafeUrl(e.link)));
@@ -242,17 +248,29 @@ const entriesIn = (key) => S.entries.filter((e) => e.month === key);
 
 /* ---------- Auth ---------- */
 async function signIn(username, password) {
+  if (!HOSTED) {
+    const r = await fetch("/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username: username.trim(), password }) }).catch(() => null);
+    return r?.ok ? r.json() : null;
+  }
   const u = USERS.find((x) => x.username === username.trim());
   if (!u) return null;
   const h = await sha256(`${u.salt}:${u.username}:${password}`);
   return h === u.hash ? { username: u.username, role: u.role } : null;
 }
-function restoreSession() {
+async function restoreSession() {
+  if (!HOSTED) {
+    const r = await fetch("/api/me").catch(() => null);
+    if (r?.ok) S.user = await r.json();
+    return;
+  }
   const name = load("gl.user");
   const u = USERS.find((x) => x.username === name);
   if (u) S.user = { username: u.username, role: u.role };
 }
-function signOut() { store("gl.user", null); S.user = null; render(); }
+function signOut() {
+  if (!HOSTED) { fetch("/api/logout", { method: "POST" }).finally(() => location.reload()); return; }
+  store("gl.user", null); S.user = null; render();
+}
 
 /* ---------- Data wiring ---------- */
 let subscribed = false;
@@ -633,6 +651,13 @@ function buildMarkdown() {
 }
 
 async function saveFile(filename, text) {
+  if (!HOSTED) {
+    const url = URL.createObjectURL(new Blob([text], { type: filename.endsWith(".json") ? "application/json" : "text/markdown" }));
+    const a = Object.assign(document.createElement("a"), { href: url, download: filename });
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast(`Saved ${filename}`); return;
+  }
   if (S.downloads === undefined) S.downloads = await useCap("downloads").catch(() => null);
   if (S.downloads) {
     try { await S.downloads.save({ filename, data: text }); S.fallbackExport = null; toast(`Saved ${filename}`); return; }
@@ -672,11 +697,72 @@ async function startImport(file) {
   });
 }
 
+/* ---------- REST adapter (self-hosted mode) ----------
+   Implements the small part of the claude.ai db API this page uses
+   (collection().onSnapshot, collection().doc().set/update/delete) on top of the
+   FastAPI backend, so the rest of the page doesn't care where it runs. */
+function restDb() {
+  const META = { fromCache: false, hasPendingWrites: false };
+  const listeners = new Map(); // collection -> Set<{ next, error }>
+  const loaded = new Set();
+  const timers = new Map();
+  const rid = () => [...crypto.getRandomValues(new Uint8Array(10))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  async function call(method, path, body) {
+    let res;
+    try {
+      res = await fetch(path, { method, headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
+    } catch { throw { code: "unavailable", message: "Network error" }; }
+    if (res.status === 401) { location.reload(); throw { code: "unauthenticated", message: "Signed out" }; }
+    if (!res.ok) {
+      const detail = await res.json().then((j) => j.detail, () => "");
+      throw { code: res.status === 403 ? "invalid_argument" : res.status >= 500 ? "unavailable" : "rejected", message: typeof detail === "string" ? detail : "" };
+    }
+    return res.status === 204 ? null : res.json();
+  }
+  async function refresh(col) {
+    const subs = listeners.get(col);
+    if (!subs?.size) return;
+    try {
+      const rows = await call("GET", `/api/${col}`);
+      const docs = rows.map(({ id, ...data }) => ({ id, exists: true, data: () => data, metadata: META }));
+      loaded.add(col);
+      subs.forEach((s) => s.next({ docs, size: docs.length, empty: !docs.length, metadata: META, docChanges: () => [] }));
+    } catch (e) {
+      if (!loaded.has(col)) subs.forEach((s) => s.error?.(e)); // later failures keep showing the last data
+    }
+  }
+  const soon = (col) => { clearTimeout(timers.get(col)); timers.set(col, setTimeout(() => refresh(col), 100)); };
+  setInterval(() => { if (document.visibilityState === "visible") listeners.forEach((_, col) => refresh(col)); }, 30000);
+  return {
+    collection(col) {
+      return {
+        onSnapshot(next, error) {
+          if (!listeners.has(col)) listeners.set(col, new Set());
+          const sub = { next, error };
+          listeners.get(col).add(sub);
+          refresh(col);
+          return () => listeners.get(col).delete(sub);
+        },
+        doc(id = rid()) {
+          const path = `/api/${col}/${encodeURIComponent(id)}`;
+          return {
+            id,
+            set: (data) => call("PUT", path, data).then(() => soon(col)),
+            update: (data) => call("PATCH", path, data).then(() => soon(col)),
+            delete: () => call("DELETE", path).then(() => soon(col)),
+          };
+        },
+      };
+    },
+  };
+}
+
 /* ---------- Boot ---------- */
 window.addEventListener("hashchange", render);
-restoreSession();
-render();
-useCap("db").then((db) => {
+restoreSession().then(() => {
+  render();
+  return HOSTED ? useCap("db") : restDb();
+}).then((db) => {
   if (!db) { S.dbStatus = "absent"; render(); return; }
   S.db = db;
   if (S.user) subscribe(); // otherwise it starts after sign-in

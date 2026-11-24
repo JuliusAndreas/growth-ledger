@@ -3,7 +3,7 @@
 .vscode/
 *.swp
 
-# Python (for the future FastAPI backend)
+# Python
 __pycache__/
 *.pyc
 .venv/
@@ -11,3 +11,7 @@ __pycache__/
 
 # Local data exports
 exports/
+
+# SQLite database (local runs)
+data/
+.pytest_cache/
