@@ -1,0 +1,13 @@
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Python (for the future FastAPI backend)
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Local data exports
+exports/

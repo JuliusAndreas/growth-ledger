@@ -1,0 +1,685 @@
+<title>Altar of the old gods</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a ledger. Header with month switcher, a score strip, then one card per growth medium in a responsive grid. Admin is a separate view. */
+:root {
+  --bg: #f5f7f6;
+  --surface: #ffffff;
+  --surface-2: #edf1ef;
+  --line: #d9e0dd;
+  --fg: #16201d;
+  --muted: #5b6b66;
+  --accent: #0d6e63;
+  --accent-fg: #ffffff;
+  --accent-soft: #d8eeea;
+  --danger: #b4322a;
+  --danger-soft: #f8e1df;
+  --good: #2f7d32;
+  --font-display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1514; --surface: #161e1c; --surface-2: #1d2725; --line: #2a3633;
+    --fg: #e3ebe8; --muted: #93a39e; --accent: #3cc2b0; --accent-fg: #07211d;
+    --accent-soft: #173a35; --danger: #f0786e; --danger-soft: #3a1f1d; --good: #7cc97f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1514; --surface: #161e1c; --surface-2: #1d2725; --line: #2a3633;
+  --fg: #e3ebe8; --muted: #93a39e; --accent: #3cc2b0; --accent-fg: #07211d;
+  --accent-soft: #173a35; --danger: #f0786e; --danger-soft: #3a1f1d; --good: #7cc97f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+h1, h2, h3 { font-family: var(--font-display); margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+h1 { font-size: 1.35rem; font-weight: 700; }
+h2 { font-size: 1.15rem; font-weight: 600; }
+h3 { font-size: 1rem; font-weight: 600; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+.label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+button, .btn {
+  font: inherit; font-weight: 500; font-size: 0.9rem; border: 1px solid var(--line); background: var(--surface);
+  color: var(--fg); border-radius: 8px; padding: 6px 12px; cursor: pointer; line-height: 1.3;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: 0.45; cursor: default; }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+button.danger { color: var(--danger); }
+button.danger.armed { background: var(--danger); color: var(--surface); border-color: var(--danger); }
+button.ghost { border-color: transparent; background: transparent; color: var(--muted); padding: 4px 8px; }
+button.ghost:hover:not(:disabled) { color: var(--fg); }
+a { color: var(--accent); }
+input, textarea, select {
+  font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; width: 100%;
+}
+textarea { min-height: 88px; resize: vertical; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > span { font-size: 0.85rem; font-weight: 500; }
+
+/* Header */
+header.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; justify-content: space-between; }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand .mark { font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0 5px; }
+nav.actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+nav.actions .who { font-size: 0.85rem; color: var(--muted); }
+.tab[aria-current="page"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+
+/* Month bar */
+.monthbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+.monthnav { display: flex; align-items: center; gap: 10px; }
+.monthnav h2 { font-size: 1.4rem; min-width: 11ch; text-align: center; }
+.stats { display: flex; gap: 28px; flex-wrap: wrap; }
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat .v { font-family: var(--font-mono); font-size: 1.35rem; font-weight: 500; font-variant-numeric: tabular-nums; }
+.stat .v.score { color: var(--accent); }
+.pill { display: inline-block; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; background: var(--surface-2); color: var(--muted); }
+.pill.open { background: var(--accent-soft); color: var(--accent); }
+
+/* History */
+.history { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+.hist { flex: 0 0 auto; min-width: 92px; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; padding: 8px 10px; text-align: left; display: flex; flex-direction: column; gap: 2px; }
+.hist[aria-current="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.hist .m { font-size: 0.78rem; color: var(--muted); }
+.hist .s { font-family: var(--font-mono); font-size: 1rem; }
+
+/* Medium cards */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+@media (max-width: 400px) { .grid { grid-template-columns: 1fr; } }
+.medium { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); display: flex; flex-direction: column; min-width: 0; }
+.medium > .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; padding: 14px 16px 10px; border-bottom: 1px solid var(--line); }
+.medium > .head .desc { font-size: 0.82rem; color: var(--muted); margin-top: 2px; }
+.medium .count { font-family: var(--font-mono); font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+.entries { list-style: none; margin: 0; padding: 0; }
+.entry { padding: 10px 16px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.entry:last-child { border-bottom: 0; }
+.entry .row { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; }
+.entry .title { font-weight: 600; overflow-wrap: anywhere; }
+.entry .meta { display: flex; gap: 10px; align-items: center; font-size: 0.78rem; color: var(--muted); flex-wrap: wrap; }
+.entry .toggle { font-size: 0.78rem; padding: 0 6px; margin-left: auto; }
+.entry .notes { font-size: 0.88rem; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--fg); opacity: 0.9; }
+.entry a { font-size: 0.82rem; overflow-wrap: anywhere; }
+.depth { display: inline-flex; gap: 2px; }
+.depth i { width: 7px; height: 7px; border-radius: 2px; background: var(--line); display: inline-block; }
+.depth i.on { background: var(--accent); }
+.medium .empty { padding: 14px 16px; font-size: 0.86rem; color: var(--muted); }
+.medium .foot { padding: 10px 12px; border-top: 1px solid var(--line); }
+.medium .foot button { width: 100%; border-style: dashed; color: var(--muted); }
+.medium .foot button:hover { color: var(--accent); }
+.tag-archived { font-size: 0.7rem; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; margin-left: 6px; }
+
+/* Notices */
+.notice { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+.notice.warn { border-color: var(--danger); background: var(--danger-soft); }
+
+/* Admin */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.panel .bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+th { text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+td.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+td .btns { display: flex; gap: 4px; justify-content: flex-end; flex-wrap: wrap; }
+tr.archived td:not(:last-child) { color: var(--muted); }
+.export-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.fallback-out { font-family: var(--font-mono); font-size: 0.8rem; min-height: 180px; }
+
+/* Login */
+.login { max-width: 380px; margin: 8vh auto 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 26px; display: flex; flex-direction: column; gap: 16px; }
+.login p { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.err { color: var(--danger); font-size: 0.86rem; min-height: 1.2em; }
+
+/* Modal */
+.scrim { position: fixed; inset: 0; background: rgb(0 0 0 / 0.45); display: flex; align-items: flex-start; justify-content: center; padding: max(24px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 24px max(16px, env(safe-area-inset-left, 0px)); overflow-y: auto; z-index: 20; }
+.modal { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; width: 100%; max-width: 520px; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+.modal .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 480px) { .modal .row2 { grid-template-columns: 1fr; } }
+.depthpick { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.depthpick label { border: 1px solid var(--line); border-radius: 8px; padding: 6px 4px; text-align: center; cursor: pointer; font-size: 0.74rem; display: flex; flex-direction: column; gap: 2px; }
+.depthpick label b { font-family: var(--font-mono); font-size: 0.95rem; }
+.depthpick input { position: absolute; opacity: 0; pointer-events: none; }
+.depthpick input:checked + label { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.depthpick input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
+.modal .btnrow { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.modal .btnrow .right { display: flex; gap: 8px; margin-left: auto; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 0.9rem; z-index: 30; max-width: calc(100% - 32px); }
+@media (prefers-reduced-motion: no-preference) { .toast { animation: rise .18s ease-out; } @keyframes rise { from { transform: translate(-50%, 8px); opacity: 0; } } }
+</style>
+
+<div class="wrap" id="app"></div>
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+
+<script>
+(() => {
+"use strict";
+
+/* ---------- Static accounts (basic auth for now) ----------
+   hash = sha256(salt + ":" + username + ":" + password)
+   This is a sign-in gate inside the page. The data itself is protected by
+   claude.ai: only the artifact's owner and editors can read or write it. */
+const USERS = [
+  { username: "admin", role: "admin", salt: "2180c3788cd30a36",
+    hash: "f6704b42a27ff71048bad5a0c89c37e328d3caf79980ce604e76b2a14508be6f" },
+];
+
+/* ---------- Scoring: placeholder until the formula is decided ---------- */
+function computeMonthScore(/* monthKey, entries, mediums */) {
+  return Math.floor(Math.random() * 101); // 0..100
+}
+
+const DEPTHS = [
+  { v: 1, name: "Encountered" },
+  { v: 2, name: "Understood" },
+  { v: 3, name: "Applied" },
+  { v: 4, name: "Shipped" },
+  { v: 5, name: "Mastered / taught" },
+];
+const EXPORT_FORMAT = { app: "growth-ledger", version: 1 };
+
+/* ---------- State ---------- */
+const S = {
+  user: null,
+  db: null, dbStatus: "connecting", // connecting | ready | slow | absent | error
+  downloads: undefined,
+  mediums: [], entries: [], months: {},
+  got: { mediums: false, entries: false, months: false },
+  view: "sheet", month: thisMonth(),
+  finalizeDone: false,
+  expanded: new Set(), // entry ids whose notes are open; collapsed by default
+  fallbackExport: null,
+};
+
+/* ---------- Helpers ---------- */
+const $ = (sel, root = document) => root.querySelector(sel);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function pad(n) { return String(n).padStart(2, "0"); }
+function todayKey() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function thisMonth() { return todayKey().slice(0, 7); }
+function shiftMonth(key, delta) { const [y, m] = key.split("-").map(Number); const d = new Date(y, m - 1 + delta, 1); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; }
+function monthLabel(key, short) { const [y, m] = key.split("-").map(Number); return new Date(y, m - 1, 1).toLocaleDateString("en-US", short ? { month: "short", year: "2-digit" } : { month: "long", year: "numeric" }); }
+function lastDayOf(key) { const [y, m] = key.split("-").map(Number); return `${key}-${pad(new Date(y, m, 0).getDate())}`; }
+function daysLeftInMonth() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate() - d.getDate(); }
+function isSafeUrl(u) { try { const x = new URL(u); return x.protocol === "https:" || x.protocol === "http:"; } catch { return false; } }
+function store(k, v) { try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch {} }
+function load(k) { try { return sessionStorage.getItem(k); } catch { return null; } }
+async function sha256(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function toast(msg) {
+  const root = $("#toast-root");
+  root.innerHTML = `<div class="toast" role="status">${esc(msg)}</div>`;
+  clearTimeout(toast.t); toast.t = setTimeout(() => (root.innerHTML = ""), 3200);
+}
+function dbErrorText(e) {
+  if (e?.code === "quota_exceeded") return "Storage is full. Delete some entries, then try again.";
+  if (e?.code === "invalid_argument") return "You don't have permission to change this data.";
+  return "Couldn't save. Check your connection and try again.";
+}
+const useCap = (name) => (window.claude?.use ? window.claude.use(name) : Promise.resolve(null));
+const isAdmin = () => S.user?.role === "admin";
+
+const hasDetails = (e) => !!(e.notes || (e.link && isSafeUrl(e.link)));
+const activeMediums = () => S.mediums.filter((m) => !m.archived).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+const entriesIn = (key) => S.entries.filter((e) => e.month === key);
+
+/* ---------- Auth ---------- */
+async function signIn(username, password) {
+  const u = USERS.find((x) => x.username === username.trim());
+  if (!u) return null;
+  const h = await sha256(`${u.salt}:${u.username}:${password}`);
+  return h === u.hash ? { username: u.username, role: u.role } : null;
+}
+function restoreSession() {
+  const name = load("gl.user");
+  const u = USERS.find((x) => x.username === name);
+  if (u) S.user = { username: u.username, role: u.role };
+}
+function signOut() { store("gl.user", null); S.user = null; render(); }
+
+/* ---------- Data wiring ---------- */
+let subscribed = false;
+function subscribe() {
+  if (subscribed || !S.db) return;
+  subscribed = true;
+  const slow = setTimeout(() => { if (S.dbStatus === "connecting") { S.dbStatus = "slow"; render(); } }, 10000);
+  const done = (key) => (snap) => {
+    if (!snap.metadata.fromCache) {
+      S.got[key] = true;
+      if (S.got.mediums && S.got.entries && S.got.months) { clearTimeout(slow); S.dbStatus = "ready"; queueMicrotask(finalizePastMonths); }
+    }
+  };
+  const fail = (e) => { clearTimeout(slow); S.dbStatus = "error"; S.dbError = e; render(); };
+  S.db.collection("mediums").onSnapshot((snap) => {
+    S.mediums = snap.docs.map((d) => ({ id: d.id, ...d.data() })); S.seen = true;
+    done("mediums")(snap); render();
+  }, fail);
+  S.db.collection("entries").onSnapshot((snap) => {
+    S.entries = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    done("entries")(snap); render();
+  }, fail);
+  S.db.collection("months").onSnapshot((snap) => {
+    S.months = Object.fromEntries(snap.docs.map((d) => [d.id, d.data()]));
+    done("months")(snap); render();
+  }, fail);
+}
+
+/* A month gets its score once it is over: the score and the medium list at
+   that moment are stored, so later changes to mediums don't rewrite history. */
+async function finalizePastMonths() {
+  if (S.finalizeDone || !S.db) return;
+  S.finalizeDone = true;
+  const current = thisMonth();
+  const keys = [...new Set(S.entries.map((e) => e.month))].filter((k) => k < current && !S.months[k]).sort();
+  for (const k of keys) {
+    const snapshot = S.mediums.map((m) => ({ id: m.id, name: m.name, weight: m.weight ?? 1, archived: !!m.archived }));
+    const score = computeMonthScore(k, entriesIn(k), snapshot);
+    try { await S.db.collection("months").doc(k).set({ score, mediums: snapshot, finalizedAt: new Date().toISOString() }); }
+    catch (e) { console.warn("finalize failed", k, e); }
+  }
+}
+
+/* ---------- Rendering ---------- */
+function render() {
+  const app = $("#app");
+  if (!S.user) { app.innerHTML = loginView(); bindLogin(); return; }
+  const hash = location.hash.slice(1);
+  S.view = hash === "admin" && isAdmin() ? "admin" : "sheet";
+  app.innerHTML = headerView() + bodyView();
+  bindMain();
+}
+
+function headerView() {
+  return `<header class="top">
+    <div class="brand"><h1>Growth Ledger</h1><span class="mark">v1</span></div>
+    <nav class="actions" aria-label="Main">
+      <button class="tab" id="nav-sheet" ${S.view === "sheet" ? 'aria-current="page"' : ""}>Monthly sheet</button>
+      ${isAdmin() ? `<button class="tab" id="nav-admin" ${S.view === "admin" ? 'aria-current="page"' : ""}>Admin</button>` : ""}
+      <span class="who">${esc(S.user.username)}</span>
+      <button class="ghost" id="signout">Sign out</button>
+    </nav>
+  </header>`;
+}
+
+function bodyView() {
+  if (S.dbStatus === "absent") return `<div class="notice warn"><h3>Storage isn't available here</h3><p class="muted">Open Growth Ledger in claude.ai while signed in to the account that owns it.</p></div>`;
+  if (S.dbStatus === "error") return `<div class="notice warn"><h3>Lost the connection to your data</h3><p class="muted">Reload the page to reconnect.</p></div>`;
+  const slowNote = S.dbStatus === "slow" ? `<div class="notice warn">Can't reach your data yet. What you see may be out of date.</div>` : "";
+  if (S.dbStatus === "connecting" && !S.seen) return `<div class="notice muted">Loading your sheets…</div>`;
+  return slowNote + (S.view === "admin" ? adminView() : sheetView());
+}
+
+function sheetView() {
+  const key = S.month, cur = thisMonth(), isCurrent = key === cur;
+  const list = entriesIn(key);
+  const shown = activeMediums().slice();
+  for (const m of S.mediums.filter((m) => m.archived)) if (list.some((e) => e.mediumId === m.id)) shown.push(m);
+  const touched = new Set(list.map((e) => e.mediumId)).size;
+  const fin = S.months[key];
+  let scoreHtml;
+  if (fin) scoreHtml = `<span class="v score">${fin.score}<span class="muted" style="font-size:.8rem">/100</span></span>`;
+  else if (isCurrent) scoreHtml = `<span class="v">—</span><span class="pill open">scored in ${daysLeftInMonth() + 1}d</span>`;
+  else if (key > cur) scoreHtml = `<span class="v">—</span>`;
+  else scoreHtml = `<span class="v">—</span><span class="pill">no entries</span>`;
+
+  const cards = shown.length ? shown.map((m) => mediumCard(m, list.filter((e) => e.mediumId === m.id))).join("")
+    : `<div class="notice"><h3>No growth mediums yet</h3><p class="muted">${isAdmin() ? 'Add mediums such as Books or Tech talks in <a href="#admin">Admin</a>.' : "An admin adds mediums in the Admin panel."}</p></div>`;
+
+  return `<section class="monthbar" aria-label="Month">
+      <div class="monthnav">
+        <button id="prev-month" aria-label="Previous month">←</button>
+        <h2>${esc(monthLabel(key))}</h2>
+        <button id="next-month" aria-label="Next month" ${isCurrent ? "disabled" : ""}>→</button>
+        ${isCurrent ? "" : `<button class="ghost" id="to-current">Back to this month</button>`}
+      </div>
+      <div class="stats">
+        <div class="stat"><span class="label">Entries</span><span class="v">${list.length}</span></div>
+        <div class="stat"><span class="label">Mediums touched</span><span class="v">${touched}<span class="muted" style="font-size:.8rem">/${activeMediums().length}</span></span></div>
+        <div class="stat"><span class="label">Month score</span><div style="display:flex;gap:8px;align-items:center">${scoreHtml}</div></div>
+      </div>
+    </section>
+    ${historyView()}
+    <section class="grid" aria-label="Growth mediums">${cards}</section>`;
+}
+
+function historyView() {
+  const cur = thisMonth();
+  const keys = Array.from({ length: 6 }, (_, i) => shiftMonth(cur, -5 + i));
+  return `<nav class="history" aria-label="Recent months">${keys.map((k) => {
+    const f = S.months[k];
+    const s = f ? `${f.score}` : k === cur ? "open" : "—";
+    return `<button class="hist" data-month="${k}" aria-current="${k === S.month}"><span class="m">${esc(monthLabel(k, true))}</span><span class="s">${esc(s)}</span></button>`;
+  }).join("")}</nav>`;
+}
+
+function mediumCard(m, list) {
+  list = list.slice().sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || "").localeCompare(a.createdAt || ""));
+  const items = list.map((e) => `<li class="entry">
+      <div class="row"><span class="title">${esc(e.title)}</span><button class="ghost" data-edit="${esc(e.id)}" aria-label="Edit ${esc(e.title)}">Edit</button></div>
+      <div class="meta"><span class="mono">${esc(e.date)}</span>
+        <span class="depth" title="Depth ${e.depth}/5: ${esc(DEPTHS[(e.depth || 1) - 1]?.name)}">${DEPTHS.map((d) => `<i class="${d.v <= e.depth ? "on" : ""}"></i>`).join("")}</span>
+        <span>${esc(DEPTHS[(e.depth || 1) - 1]?.name)}</span>
+        ${hasDetails(e) ? `<button class="ghost toggle" data-toggle="${esc(e.id)}" aria-expanded="${S.expanded.has(e.id)}">${S.expanded.has(e.id) ? "Hide notes ▾" : "Show notes ▸"}</button>` : ""}</div>
+      ${S.expanded.has(e.id) && e.notes ? `<div class="notes">${esc(e.notes)}</div>` : ""}
+      ${S.expanded.has(e.id) && e.link && isSafeUrl(e.link) ? `<a href="${esc(e.link)}" target="_blank" rel="noopener noreferrer">${esc(e.link)}</a>` : ""}
+    </li>`).join("");
+  return `<article class="medium">
+    <div class="head"><div><h3>${esc(m.name)}${m.archived ? '<span class="tag-archived">archived</span>' : ""}</h3>${m.description ? `<div class="desc">${esc(m.description)}</div>` : ""}</div>
+      <span class="count">${list.length}</span></div>
+    ${list.length ? `<ul class="entries">${items}</ul>` : `<div class="empty">Nothing logged from ${esc(m.name.toLowerCase())} this month.</div>`}
+    ${m.archived ? "" : `<div class="foot"><button data-add="${esc(m.id)}">+ Log what you learned</button></div>`}
+  </article>`;
+}
+
+function adminView() {
+  const all = S.mediums.slice().sort((a, b) => (a.archived - b.archived) || (a.order ?? 0) - (b.order ?? 0));
+  const act = activeMediums();
+  const rows = all.map((m) => {
+    const n = S.entries.filter((e) => e.mediumId === m.id).length;
+    const i = act.findIndex((x) => x.id === m.id);
+    return `<tr class="${m.archived ? "archived" : ""}">
+      <td><strong>${esc(m.name)}</strong>${m.archived ? '<span class="tag-archived">archived</span>' : ""}${m.description ? `<div class="muted" style="font-size:.82rem">${esc(m.description)}</div>` : ""}</td>
+      <td class="num">${Number(m.weight ?? 1).toFixed(1)}</td>
+      <td class="num">${n}</td>
+      <td><div class="btns">
+        ${m.archived ? "" : `<button class="ghost" data-up="${esc(m.id)}" ${i <= 0 ? "disabled" : ""} aria-label="Move ${esc(m.name)} up">↑</button>
+        <button class="ghost" data-down="${esc(m.id)}" ${i === act.length - 1 ? "disabled" : ""} aria-label="Move ${esc(m.name)} down">↓</button>`}
+        <button data-medit="${esc(m.id)}">Edit</button>
+        <button data-archive="${esc(m.id)}">${m.archived ? "Restore" : "Archive"}</button>
+      </div></td></tr>`;
+  }).join("");
+  return `<section class="panel">
+      <div class="bar"><div><h2>Growth mediums</h2><p class="muted" style="margin:4px 0 0">Every monthly sheet uses the active mediums. Archiving hides a medium from new months and keeps its past entries.</p></div>
+        <button class="primary" id="add-medium">Add medium</button></div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Medium</th><th>Weight</th><th>Entries</th><th></th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="4" class="muted">No mediums yet.</td></tr>`}</tbody>
+      </table></div>
+    </section>
+    <section class="panel">
+      <div><h2>Export and import</h2><p class="muted" style="margin:4px 0 0">The JSON file holds everything (mediums, entries, month scores) and can be imported into another copy of Growth Ledger. The Markdown file is for reading.</p></div>
+      <div class="export-row">
+        <button id="export-md">Export Markdown</button>
+        <button id="export-json">Export JSON</button>
+        <label class="btn" for="import-file" style="display:inline-flex;align-items:center">Import JSON…</label>
+        <input type="file" id="import-file" accept=".json,application/json" hidden>
+      </div>
+      ${S.fallbackExport ? `<div class="field"><span>${esc(S.fallbackExport.filename)}: saving files isn't available here, so copy it instead.</span>
+        <textarea class="fallback-out" id="fallback-out" readonly>${esc(S.fallbackExport.text)}</textarea>
+        <div><button id="copy-fallback">Copy</button></div></div>` : ""}
+      <p class="muted" style="margin:0;font-size:.85rem">${S.entries.length} entries · ${S.mediums.length} mediums · ${Object.keys(S.months).length} scored months</p>
+    </section>`;
+}
+
+function loginView() {
+  return `<form class="login" id="login-form" autocomplete="on">
+    <div><h1>Growth Ledger</h1><p style="margin-top:6px">Sign in to your monthly growth sheets.</p></div>
+    <label class="field"><span>Username</span><input id="login-user" name="username" autocomplete="username" required></label>
+    <label class="field"><span>Password</span><input id="login-pass" name="password" type="password" autocomplete="current-password" required></label>
+    <div class="err" id="login-err" role="alert"></div>
+    <button class="primary" type="submit">Sign in</button>
+  </form>`;
+}
+
+/* ---------- Bindings ---------- */
+function bindLogin() {
+  $("#login-form").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const u = await signIn($("#login-user").value, $("#login-pass").value);
+    if (!u) { $("#login-err").textContent = "Wrong username or password."; return; }
+    S.user = u; store("gl.user", u.username); subscribe(); render();
+  });
+  $("#login-user").focus();
+}
+
+function goMonth(key) {
+  S.month = key > thisMonth() ? thisMonth() : key;
+  render();
+}
+
+function bindMain() {
+  $("#signout").onclick = signOut;
+  $("#nav-sheet").onclick = () => { if (location.hash) location.hash = ""; else render(); };
+  const na = $("#nav-admin"); if (na) na.onclick = () => { location.hash = "admin"; };
+  const app = $("#app");
+  app.querySelector("#prev-month")?.addEventListener("click", () => goMonth(shiftMonth(S.month, -1)));
+  app.querySelector("#next-month")?.addEventListener("click", () => goMonth(shiftMonth(S.month, 1)));
+  app.querySelector("#to-current")?.addEventListener("click", () => goMonth(thisMonth()));
+  app.querySelectorAll("[data-month]").forEach((b) => b.onclick = () => goMonth(b.dataset.month));
+  app.querySelectorAll("[data-add]").forEach((b) => b.onclick = () => openEntryModal({ mediumId: b.dataset.add }));
+  app.querySelectorAll("[data-edit]").forEach((b) => b.onclick = () => openEntryModal(S.entries.find((e) => e.id === b.dataset.edit)));
+  app.querySelectorAll("[data-toggle]").forEach((b) => b.onclick = () => {
+    const id = b.dataset.toggle;
+    S.expanded.has(id) ? S.expanded.delete(id) : S.expanded.add(id);
+    render();
+    app.querySelector(`[data-toggle="${CSS.escape(id)}"]`)?.focus();
+  });
+  if (S.view === "admin") bindAdmin(app);
+}
+
+function bindAdmin(app) {
+  $("#add-medium").onclick = () => openMediumModal(null);
+  app.querySelectorAll("[data-medit]").forEach((b) => b.onclick = () => openMediumModal(S.mediums.find((m) => m.id === b.dataset.medit)));
+  app.querySelectorAll("[data-archive]").forEach((b) => b.onclick = async () => {
+    const m = S.mediums.find((x) => x.id === b.dataset.archive);
+    const patch = { archived: !m.archived };
+    if (m.archived) patch.order = nextOrder();
+    try { await S.db.collection("mediums").doc(m.id).update(patch); toast(m.archived ? `Restored ${m.name}` : `Archived ${m.name}`); }
+    catch (e) { toast(dbErrorText(e)); }
+  });
+  const move = async (id, dir) => {
+    const act = activeMediums(); const i = act.findIndex((m) => m.id === id); const j = i + dir;
+    if (j < 0 || j >= act.length) return;
+    const ids = act.map((m) => m.id); [ids[i], ids[j]] = [ids[j], ids[i]];
+    try { for (let k = 0; k < ids.length; k++) { const m = act.find((x) => x.id === ids[k]); if (m.order !== k) await S.db.collection("mediums").doc(ids[k]).update({ order: k }); } }
+    catch (e) { toast(dbErrorText(e)); }
+  };
+  app.querySelectorAll("[data-up]").forEach((b) => b.onclick = () => move(b.dataset.up, -1));
+  app.querySelectorAll("[data-down]").forEach((b) => b.onclick = () => move(b.dataset.down, 1));
+  $("#export-md").onclick = () => saveFile(`growth-ledger-${todayKey()}.md`, buildMarkdown());
+  $("#export-json").onclick = () => saveFile(`growth-ledger-${todayKey()}.json`, JSON.stringify(buildJson(), null, 2));
+  $("#import-file").onchange = (ev) => { const f = ev.target.files[0]; ev.target.value = ""; if (f) startImport(f); };
+  const cp = $("#copy-fallback");
+  if (cp) cp.onclick = () => navigator.clipboard.writeText(S.fallbackExport.text).then(() => toast("Copied"), () => { $("#fallback-out").select(); toast("Press Ctrl+C to copy"); });
+}
+
+const nextOrder = () => Math.max(-1, ...activeMediums().map((m) => m.order ?? 0)) + 1;
+
+/* ---------- Modals ---------- */
+function closeModal() { $("#modal-root").innerHTML = ""; document.removeEventListener("keydown", escClose); }
+function escClose(e) { if (e.key === "Escape") closeModal(); }
+function showModal(html, bind) {
+  const root = $("#modal-root");
+  root.innerHTML = `<div class="scrim" id="scrim"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`;
+  $("#scrim").addEventListener("mousedown", (e) => { if (e.target.id === "scrim") closeModal(); });
+  document.addEventListener("keydown", escClose);
+  bind(root);
+}
+function armedDelete(btn, action) {
+  btn.onclick = async () => {
+    if (!btn.classList.contains("armed")) { btn.classList.add("armed"); btn.textContent = "Click again to delete"; return; }
+    await action();
+  };
+}
+
+function openEntryModal(entry) {
+  const editing = !!entry?.id;
+  const e = entry || {};
+  const defDate = S.month === thisMonth() ? todayKey() : lastDayOf(S.month);
+  const opts = activeMediums().concat(S.mediums.filter((m) => m.archived && m.id === e.mediumId))
+    .map((m) => `<option value="${esc(m.id)}" ${m.id === e.mediumId ? "selected" : ""}>${esc(m.name)}</option>`).join("");
+  const depth = e.depth || 2;
+  showModal(`<h2>${editing ? "Edit entry" : "Log what you learned"}</h2>
+    <form id="entry-form" class="field" style="gap:14px">
+      <div class="row2">
+        <label class="field"><span>Medium</span><select id="f-medium" required>${opts}</select></label>
+        <label class="field"><span>Date</span><input id="f-date" type="date" required value="${esc(e.date || defDate)}" max="${todayKey()}"></label>
+      </div>
+      <label class="field"><span>What did you learn?</span><input id="f-title" required maxlength="200" value="${esc(e.title)}" placeholder="e.g. How Kafka consumer group rebalancing works"></label>
+      <label class="field"><span>Notes</span><textarea id="f-notes" maxlength="5000" placeholder="Key takeaways, where it came from, what you'd do differently">${esc(e.notes)}</textarea></label>
+      <label class="field"><span>Link (optional)</span><input id="f-link" type="url" value="${esc(e.link)}" placeholder="https://"></label>
+      <fieldset class="field" style="border:0;padding:0;margin:0"><legend style="font-size:.85rem;font-weight:500;margin-bottom:6px">Depth</legend>
+        <div class="depthpick">${DEPTHS.map((d) => `<input type="radio" name="depth" id="f-depth-${d.v}" value="${d.v}" ${d.v === depth ? "checked" : ""}><label for="f-depth-${d.v}"><b>${d.v}</b>${esc(d.name)}</label>`).join("")}</div>
+      </fieldset>
+      <div class="err" id="f-err" role="alert"></div>
+      <div class="btnrow">
+        ${editing ? `<button type="button" class="danger" id="f-delete">Delete</button>` : ""}
+        <div class="right"><button type="button" id="f-cancel">Cancel</button><button type="submit" class="primary" id="f-save">${editing ? "Save changes" : "Add entry"}</button></div>
+      </div>
+    </form>`, () => {
+    $("#f-cancel").onclick = closeModal;
+    $("#f-title").focus();
+    if (editing) armedDelete($("#f-delete"), async () => {
+      try { await S.db.collection("entries").doc(e.id).delete(); closeModal(); toast("Entry deleted"); }
+      catch (err) { $("#f-err").textContent = dbErrorText(err); }
+    });
+    $("#entry-form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const date = $("#f-date").value, link = $("#f-link").value.trim();
+      if (link && !isSafeUrl(link)) { $("#f-err").textContent = "Links must start with http:// or https://"; return; }
+      const body = {
+        mediumId: $("#f-medium").value, date, month: date.slice(0, 7),
+        title: $("#f-title").value.trim(), notes: $("#f-notes").value.trim(), link,
+        depth: Number(document.querySelector('input[name="depth"]:checked').value),
+        updatedAt: new Date().toISOString(),
+      };
+      $("#f-save").disabled = true;
+      try {
+        if (editing) await S.db.collection("entries").doc(e.id).update(body);
+        else await S.db.collection("entries").doc().set({ ...body, createdAt: body.updatedAt });
+        closeModal(); toast(editing ? "Saved" : "Entry added");
+        if (body.month !== S.month) { S.month = body.month; render(); }
+      } catch (err) { $("#f-err").textContent = dbErrorText(err); $("#f-save").disabled = false; }
+    });
+  });
+}
+
+function openMediumModal(m) {
+  const editing = !!m;
+  m = m || { name: "", description: "", weight: 1 };
+  showModal(`<h2>${editing ? "Edit medium" : "Add medium"}</h2>
+    <form id="medium-form" class="field" style="gap:14px">
+      <label class="field"><span>Name</span><input id="m-name" required maxlength="80" value="${esc(m.name)}" placeholder="e.g. Code reviews"></label>
+      <label class="field"><span>Description (optional)</span><input id="m-desc" maxlength="200" value="${esc(m.description)}"></label>
+      <label class="field"><span>Weight</span><input id="m-weight" type="number" min="0" max="5" step="0.1" required value="${esc(m.weight ?? 1)}">
+        <small class="muted">Saved for the scoring formula. It doesn't affect scores yet.</small></label>
+      <div class="err" id="m-err" role="alert"></div>
+      <div class="btnrow"><div class="right"><button type="button" id="m-cancel">Cancel</button><button type="submit" class="primary" id="m-save">${editing ? "Save changes" : "Add medium"}</button></div></div>
+    </form>`, () => {
+    $("#m-cancel").onclick = closeModal;
+    $("#m-name").focus();
+    $("#medium-form").addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const body = { name: $("#m-name").value.trim(), description: $("#m-desc").value.trim(), weight: Number($("#m-weight").value) };
+      $("#m-save").disabled = true;
+      try {
+        if (editing) await S.db.collection("mediums").doc(m.id).update(body);
+        else await S.db.collection("mediums").doc().set({ ...body, order: nextOrder(), archived: false, createdAt: new Date().toISOString() });
+        closeModal(); toast(editing ? "Saved" : `Added ${body.name}`);
+      } catch (err) { $("#m-err").textContent = dbErrorText(err); $("#m-save").disabled = false; }
+    });
+  });
+}
+
+/* ---------- Export / import ---------- */
+function buildJson() {
+  return {
+    ...EXPORT_FORMAT, exportedAt: new Date().toISOString(),
+    mediums: S.mediums.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    entries: S.entries.slice().sort((a, b) => (a.date || "").localeCompare(b.date || "")),
+    months: Object.entries(S.months).map(([id, v]) => ({ id, ...v })).sort((a, b) => a.id.localeCompare(b.id)),
+  };
+}
+
+function buildMarkdown() {
+  const out = [`# Growth Ledger`, ``, `Exported ${new Date().toISOString()}`, ``];
+  const keys = [...new Set([thisMonth(), ...S.entries.map((e) => e.month)])].sort().reverse();
+  const byId = Object.fromEntries(S.mediums.map((m) => [m.id, m]));
+  for (const k of keys) {
+    const list = entriesIn(k);
+    const f = S.months[k];
+    out.push(`## ${monthLabel(k)}`, ``, `- Score: ${f ? `${f.score}/100` : k === thisMonth() ? "open (scored at month end)" : "not scored"}`, `- Entries: ${list.length}`, ``);
+    const ids = [...activeMediums().map((m) => m.id), ...new Set(list.map((e) => e.mediumId))].filter((v, i, a) => a.indexOf(v) === i);
+    for (const id of ids) {
+      const items = list.filter((e) => e.mediumId === id).sort((a, b) => a.date.localeCompare(b.date));
+      out.push(`### ${byId[id]?.name || "Unknown medium"}`, ``);
+      if (!items.length) { out.push(`_Nothing logged._`, ``); continue; }
+      for (const e of items) {
+        out.push(`- **${e.title}** (${e.date}, depth ${e.depth}/5 ${DEPTHS[(e.depth || 1) - 1]?.name || ""})`);
+        if (e.notes) out.push(...e.notes.split("\n").map((l) => `  ${l}`));
+        if (e.link) out.push(`  ${e.link}`);
+      }
+      out.push(``);
+    }
+  }
+  return out.join("\n");
+}
+
+async function saveFile(filename, text) {
+  if (S.downloads === undefined) S.downloads = await useCap("downloads").catch(() => null);
+  if (S.downloads) {
+    try { await S.downloads.save({ filename, data: text }); S.fallbackExport = null; toast(`Saved ${filename}`); return; }
+    catch (e) { if (e?.code === "declined") return; if (e?.code === "rate_limited") { toast("A save prompt is already open."); return; } }
+  }
+  S.fallbackExport = { filename, text }; render();
+}
+
+async function startImport(file) {
+  let data;
+  try { data = JSON.parse(await file.text()); } catch { toast("That file isn't valid JSON."); return; }
+  if (data?.app !== EXPORT_FORMAT.app || !Array.isArray(data.mediums) || !Array.isArray(data.entries)) { toast("That file isn't a Growth Ledger export."); return; }
+  const months = Array.isArray(data.months) ? data.months : [];
+  showModal(`<h2>Import ${esc(file.name)}</h2>
+    <p class="muted" style="margin:0">Adds or overwrites ${data.mediums.length} mediums, ${data.entries.length} entries and ${months.length} month scores, matched by id. Records that are only in this app stay as they are.</p>
+    <div class="err" id="i-err" role="alert"></div>
+    <div class="btnrow"><div class="right"><button id="i-cancel">Cancel</button><button class="primary" id="i-go">Import</button></div></div>`, () => {
+    $("#i-cancel").onclick = closeModal;
+    $("#i-go").onclick = async () => {
+      const go = $("#i-go"); go.disabled = true;
+      const jobs = [
+        ...data.mediums.map((r) => ["mediums", r]),
+        ...data.entries.map((r) => ["entries", r]),
+        ...months.map((r) => ["months", r]),
+      ];
+      let n = 0;
+      try {
+        for (const [col, rec] of jobs) {
+          const { id, ...body } = rec;
+          if (typeof id !== "string" || !id) continue;
+          await S.db.collection(col).doc(id).set(body);
+          if (++n % 10 === 0) go.textContent = `Importing ${n}/${jobs.length}`;
+        }
+        closeModal(); toast(`Imported ${n} records`);
+      } catch (err) { $("#i-err").textContent = `Stopped after ${n} records. ${dbErrorText(err)}`; go.disabled = false; go.textContent = "Retry import"; }
+    };
+  });
+}
+
+/* ---------- Boot ---------- */
+window.addEventListener("hashchange", render);
+restoreSession();
+render();
+useCap("db").then((db) => {
+  if (!db) { S.dbStatus = "absent"; render(); return; }
+  S.db = db;
+  if (S.user) subscribe(); // otherwise it starts after sign-in
+}).catch(() => { S.dbStatus = "absent"; render(); });
+})();
+</script>
