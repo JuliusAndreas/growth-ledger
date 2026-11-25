@@ -2,7 +2,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
-<style>
+<style id="app-style">
 /* Layout: a ledger. Header with month switcher, a score strip, then one card per growth medium in a responsive grid. Admin is a separate view. */
 :root {
   --bg: #f5f7f6;
@@ -81,7 +81,7 @@ nav.actions .who { font-size: 0.85rem; color: var(--muted); }
 
 /* Month bar */
 .monthbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
-.monthnav { display: flex; align-items: center; gap: 10px; }
+.monthnav { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .monthnav h2 { font-size: 1.4rem; min-width: 11ch; text-align: center; }
 .stats { display: flex; gap: 28px; flex-wrap: wrap; }
 .stat { display: flex; flex-direction: column; gap: 2px; }
@@ -157,6 +157,16 @@ tr.archived td:not(:last-child) { color: var(--muted); }
 .depthpick input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 2px; }
 .modal .btnrow { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .modal .btnrow .right { display: flex; gap: 8px; margin-left: auto; }
+
+/* View-only sheet: notes use <details> so they collapse without scripts */
+.entry details summary { font-size: 0.78rem; color: var(--muted); cursor: pointer; width: max-content; list-style: none; }
+.entry details summary::-webkit-details-marker { display: none; }
+.entry details summary:hover { color: var(--fg); }
+.entry details .when-open, .entry details[open] .when-closed { display: none; }
+.entry details[open] .when-open { display: inline; }
+.entry details[open] { display: flex; flex-direction: column; gap: 3px; }
+.modal.wide { max-width: 1100px; }
+.preview { width: 100%; height: 70vh; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
 
 .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 8px; font-size: 0.9rem; z-index: 30; max-width: calc(100% - 32px); }
 @media (prefers-reduced-motion: no-preference) { .toast { animation: rise .18s ease-out; } @keyframes rise { from { transform: translate(-50%, 8px); opacity: 0; } } }
@@ -344,18 +354,33 @@ function bodyView() {
   return slowNote + (S.view === "admin" ? adminView() : sheetView());
 }
 
-function sheetView() {
-  const key = S.month, cur = thisMonth(), isCurrent = key === cur;
-  const list = entriesIn(key);
+// Active mediums, plus archived ones that still have entries in this month.
+function sheetMediums(list) {
   const shown = activeMediums().slice();
   for (const m of S.mediums.filter((m) => m.archived)) if (list.some((e) => e.mediumId === m.id)) shown.push(m);
+  return shown;
+}
+
+function statsView(key, list) {
+  const cur = thisMonth();
   const touched = new Set(list.map((e) => e.mediumId)).size;
   const fin = S.months[key];
   let scoreHtml;
   if (fin) scoreHtml = `<span class="v score">${fin.score}<span class="muted" style="font-size:.8rem">/100</span></span>`;
-  else if (isCurrent) scoreHtml = `<span class="v">—</span><span class="pill open">scored in ${daysLeftInMonth() + 1}d</span>`;
+  else if (key === cur) scoreHtml = `<span class="v">—</span><span class="pill open">scored in ${daysLeftInMonth() + 1}d</span>`;
   else if (key > cur) scoreHtml = `<span class="v">—</span>`;
   else scoreHtml = `<span class="v">—</span><span class="pill">no entries</span>`;
+  return `<div class="stats">
+        <div class="stat"><span class="label">Entries</span><span class="v">${list.length}</span></div>
+        <div class="stat"><span class="label">Mediums touched</span><span class="v">${touched}<span class="muted" style="font-size:.8rem">/${activeMediums().length}</span></span></div>
+        <div class="stat"><span class="label">Month score</span><div style="display:flex;gap:8px;align-items:center">${scoreHtml}</div></div>
+      </div>`;
+}
+
+function sheetView() {
+  const key = S.month, isCurrent = key === thisMonth();
+  const list = entriesIn(key);
+  const shown = sheetMediums(list);
 
   const cards = shown.length ? shown.map((m) => mediumCard(m, list.filter((e) => e.mediumId === m.id))).join("")
     : `<div class="notice"><h3>No growth mediums yet</h3><p class="muted">${isAdmin() ? 'Add mediums such as Books or Tech talks in <a href="#admin">Admin</a>.' : "An admin adds mediums in the Admin panel."}</p></div>`;
@@ -366,12 +391,9 @@ function sheetView() {
         <h2>${esc(monthLabel(key))}</h2>
         <button id="next-month" aria-label="Next month" ${isCurrent ? "disabled" : ""}>→</button>
         ${isCurrent ? "" : `<button class="ghost" id="to-current">Back to this month</button>`}
+        <button id="view-only">Generate view-only sheet</button>
       </div>
-      <div class="stats">
-        <div class="stat"><span class="label">Entries</span><span class="v">${list.length}</span></div>
-        <div class="stat"><span class="label">Mediums touched</span><span class="v">${touched}<span class="muted" style="font-size:.8rem">/${activeMediums().length}</span></span></div>
-        <div class="stat"><span class="label">Month score</span><div style="display:flex;gap:8px;align-items:center">${scoreHtml}</div></div>
-      </div>
+      ${statsView(key, list)}
     </section>
     ${historyView()}
     <section class="grid" aria-label="Growth mediums">${cards}</section>`;
@@ -387,23 +409,28 @@ function historyView() {
   }).join("")}</nav>`;
 }
 
-function mediumCard(m, list) {
+function mediumCard(m, list, readOnly = false) {
   list = list.slice().sort((a, b) => (b.date || "").localeCompare(a.date || "") || (b.createdAt || "").localeCompare(a.createdAt || ""));
   const items = list.map((e) => `<li class="entry">
-      <div class="row"><span class="title">${esc(e.title)}</span><button class="ghost" data-edit="${esc(e.id)}" aria-label="Edit ${esc(e.title)}">Edit</button></div>
+      <div class="row"><span class="title">${esc(e.title)}</span>${readOnly ? "" : `<button class="ghost" data-edit="${esc(e.id)}" aria-label="Edit ${esc(e.title)}">Edit</button>`}</div>
       <div class="meta"><span class="mono">${esc(e.date)}</span>
         <span class="depth" title="Depth ${e.depth}/5: ${esc(DEPTHS[(e.depth || 1) - 1]?.name)}">${DEPTHS.map((d) => `<i class="${d.v <= e.depth ? "on" : ""}"></i>`).join("")}</span>
         <span>${esc(DEPTHS[(e.depth || 1) - 1]?.name)}</span>
-        ${hasDetails(e) ? `<button class="ghost toggle" data-toggle="${esc(e.id)}" aria-expanded="${S.expanded.has(e.id)}">${S.expanded.has(e.id) ? "Hide notes ▾" : "Show notes ▸"}</button>` : ""}</div>
-      ${S.expanded.has(e.id) && e.notes ? `<div class="notes">${esc(e.notes)}</div>` : ""}
-      ${S.expanded.has(e.id) && e.link && isSafeUrl(e.link) ? `<a href="${esc(e.link)}" target="_blank" rel="noopener noreferrer">${esc(e.link)}</a>` : ""}
+        ${!readOnly && hasDetails(e) ? `<button class="ghost toggle" data-toggle="${esc(e.id)}" aria-expanded="${S.expanded.has(e.id)}">${S.expanded.has(e.id) ? "Hide notes ▾" : "Show notes ▸"}</button>` : ""}</div>
+      ${readOnly ? (hasDetails(e) ? `<details><summary><span class="when-closed">Show notes ▸</span><span class="when-open">Hide notes ▾</span></summary>${detailsHtml(e)}</details>` : "")
+        : S.expanded.has(e.id) ? detailsHtml(e) : ""}
     </li>`).join("");
   return `<article class="medium">
     <div class="head"><div><h3>${esc(m.name)}${m.archived ? '<span class="tag-archived">archived</span>' : ""}</h3>${m.description ? `<div class="desc">${esc(m.description)}</div>` : ""}</div>
       <span class="count">${list.length}</span></div>
     ${list.length ? `<ul class="entries">${items}</ul>` : `<div class="empty">Nothing logged from ${esc(m.name.toLowerCase())} this month.</div>`}
-    ${m.archived ? "" : `<div class="foot"><button data-add="${esc(m.id)}">+ Log what you learned</button></div>`}
+    ${m.archived || readOnly ? "" : `<div class="foot"><button data-add="${esc(m.id)}">+ Log what you learned</button></div>`}
   </article>`;
+}
+
+function detailsHtml(e) {
+  return (e.notes ? `<div class="notes">${esc(e.notes)}</div>` : "")
+    + (e.link && isSafeUrl(e.link) ? `<a href="${esc(e.link)}" target="_blank" rel="noopener noreferrer">${esc(e.link)}</a>` : "");
 }
 
 function adminView() {
@@ -480,6 +507,7 @@ function bindMain() {
   app.querySelector("#prev-month")?.addEventListener("click", () => goMonth(shiftMonth(S.month, -1)));
   app.querySelector("#next-month")?.addEventListener("click", () => goMonth(shiftMonth(S.month, 1)));
   app.querySelector("#to-current")?.addEventListener("click", () => goMonth(thisMonth()));
+  app.querySelector("#view-only")?.addEventListener("click", () => openViewOnlyModal(S.month));
   app.querySelectorAll("[data-month]").forEach((b) => b.onclick = () => goMonth(b.dataset.month));
   app.querySelectorAll("[data-add]").forEach((b) => b.onclick = () => openEntryModal({ mediumId: b.dataset.add }));
   app.querySelectorAll("[data-edit]").forEach((b) => b.onclick = () => openEntryModal(S.entries.find((e) => e.id === b.dataset.edit)));
@@ -650,9 +678,60 @@ function buildMarkdown() {
   return out.join("\n");
 }
 
+/* ---------- View-only sheet ----------
+   A standalone HTML page of one month: same look as the sheet, no edit controls,
+   no scripts. How it gets served or shared is still to be decided. */
+function buildViewOnlySheet(key) {
+  const list = entriesIn(key);
+  const cards = sheetMediums(list).map((m) => mediumCard(m, list.filter((e) => e.mediumId === m.id), true)).join("");
+  const css = ($("#app-style") || $("style")).textContent;
+  const fonts = $('link[rel="stylesheet"][href*="fonts.googleapis.com"]')?.href;
+  const theme = document.documentElement.dataset.theme;
+  return `<!doctype html>
+<html lang="en"${theme ? ` data-theme="${esc(theme)}"` : ""}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Growth Ledger · ${esc(monthLabel(key))}</title>
+${fonts ? `<link rel="stylesheet" href="${esc(fonts)}">` : ""}
+<style>${css}</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><h1>Growth Ledger</h1><span class="mark">view only</span></div>
+    <span class="muted" style="font-size:.85rem">Generated ${esc(new Date().toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" }))}</span>
+  </header>
+  <section class="monthbar" aria-label="Month">
+    <div class="monthnav"><h2 style="text-align:left">${esc(monthLabel(key))}</h2></div>
+    ${statsView(key, list)}
+  </section>
+  <section class="grid" aria-label="Growth mediums">${cards}</section>
+</div>
+</body>
+</html>
+`;
+}
+
+function openViewOnlyModal(key) {
+  const html = buildViewOnlySheet(key);
+  showModal(`<h2>View-only sheet · ${esc(monthLabel(key))}</h2>
+    <p class="muted" style="margin:0">A read-only copy of this month as it is now. It isn't shared or stored anywhere yet.</p>
+    <iframe class="preview" title="View-only sheet preview" sandbox="allow-popups allow-popups-to-escape-sandbox"></iframe>
+    <div class="btnrow"><div class="right">
+      <button id="vo-download">Download .html</button>
+      <button class="primary" id="vo-close">Close</button>
+    </div></div>`, (root) => {
+    root.querySelector(".modal").classList.add("wide");
+    root.querySelector(".preview").srcdoc = html;
+    $("#vo-close").onclick = closeModal;
+    $("#vo-download").onclick = () => saveFile(`growth-ledger-${key}-view-only.html`, html);
+  });
+}
+
 async function saveFile(filename, text) {
   if (!HOSTED) {
-    const url = URL.createObjectURL(new Blob([text], { type: filename.endsWith(".json") ? "application/json" : "text/markdown" }));
+    const url = URL.createObjectURL(new Blob([text], { type: filename.endsWith(".json") ? "application/json" : filename.endsWith(".html") ? "text/html" : "text/markdown" }));
     const a = Object.assign(document.createElement("a"), { href: url, download: filename });
     document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);

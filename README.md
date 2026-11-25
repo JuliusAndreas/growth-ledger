@@ -77,6 +77,7 @@ Import upserts every record by `id`. Records that exist only in the target stay 
 - **Month score:** when a month ends, the app stores a score (0 to 100) and a snapshot of that month's mediums. Scoring is a placeholder for now: `computeMonthScore()` in `artifact/index.html` returns a random number.
 - **Admin panel** (admin role only): add, edit, reorder, archive and restore mediums. Each medium has a weight that is stored for the future scoring formula.
 - **Export and import:** Markdown export for reading, and a JSON export/import holding all the data.
+- **View-only sheet:** the **Generate view-only sheet** button on the month bar builds a read-only copy of that month (same look, no edit controls, no scripts, notes collapsible). It opens in a preview and can be downloaded as a standalone `.html` file. Sharing and serving it is not built yet.
 
 ## How the frontend runs in two places
 
@@ -148,3 +149,4 @@ Never commit a plain-text password.
 - [ ] Scoring formula (replace `computeMonthScore`)
 - [ ] Daily sync of the JSON/Markdown export to Google Drive
 - [ ] Multiple user accounts and profiles
+- [ ] Serve or share the view-only sheet
